@@ -39,7 +39,7 @@ const Header = () => {
             </Button>
             <Button 
               className="bg-white text-[#8bc34a] hover:bg-white/90"
-              onClick={() => navigate("/login")}
+              onClick={() => navigate("/signup")}
             >
               Sign Up
             </Button>
