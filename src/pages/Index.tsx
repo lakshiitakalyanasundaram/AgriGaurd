@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -7,24 +6,67 @@ import { Check, Upload, Image, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Header from "@/components/Header";
 import PlantIcon from "@/components/PlantIcon";
+import { useToast } from "@/hooks/use-toast";
+import { predictDisease } from "@/services/api";
+import type { PredictionResponse } from "@/services/api";
 
 const Index = () => {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [prediction, setPrediction] = useState<string | null>(null);
+  const [prediction, setPrediction] = useState<PredictionResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
+      
+      if (!selectedFile.type.includes('jpeg') && !selectedFile.type.includes('jpg')) {
+        toast({
+          title: "Invalid file type",
+          description: "Please upload a JPG/JPEG image",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setFile(selectedFile);
       
-      // Create preview
       const reader = new FileReader();
       reader.onload = (event) => {
         setPreview(event.target?.result as string);
       };
       reader.readAsDataURL(selectedFile);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!file) {
+      toast({
+        title: "No file selected",
+        description: "Please select an image to upload",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const result = await predictDisease(file);
+      setPrediction(result);
+      toast({
+        title: "Prediction complete",
+        description: `Detected disease: ${result.disease}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to predict disease",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -54,8 +96,10 @@ const Index = () => {
               fileInputRef={fileInputRef}
               handleFileChange={handleFileChange}
               triggerFileInput={triggerFileInput}
+              handleUpload={handleUpload}
+              isLoading={isLoading}
             />
-            <DiseaseDetailsSection prediction={prediction} />
+            <DiseaseDetailsSection prediction={prediction?.disease || null} />
           </div>
         </div>
       </main>
@@ -125,10 +169,12 @@ const DiagnosisSection = () => (
 interface UploadSectionProps {
   file: File | null;
   preview: string | null;
-  prediction: string | null;
+  prediction: PredictionResponse | null;
   fileInputRef: React.RefObject<HTMLInputElement>;
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   triggerFileInput: () => void;
+  handleUpload: () => void;
+  isLoading: boolean;
 }
 
 const UploadSection = ({ 
@@ -137,7 +183,9 @@ const UploadSection = ({
   prediction, 
   fileInputRef, 
   handleFileChange, 
-  triggerFileInput 
+  triggerFileInput,
+  handleUpload,
+  isLoading 
 }: UploadSectionProps) => (
   <div className="p-8 flex flex-col items-center border-r border-[#444]">
     <h2 className="text-2xl font-bold mb-8 text-[#8bc34a]">Upload Plant Image</h2>
@@ -148,13 +196,14 @@ const UploadSection = ({
         id="file-upload"
         ref={fileInputRef}
         className="hidden"
-        accept="image/*"
+        accept="image/jpeg,image/jpg"
         onChange={handleFileChange}
       />
       
       <Button 
         onClick={triggerFileInput}
         className="w-full bg-[#8bc34a] hover:bg-[#8bc34a]/90 text-white font-medium py-6"
+        disabled={isLoading}
       >
         <Upload className="mr-2 h-5 w-5" />
         Choose File
@@ -184,11 +233,30 @@ const UploadSection = ({
       )}
     </div>
     
+    {file && (
+      <Button 
+        onClick={handleUpload}
+        className="w-full bg-[#4caf50] hover:bg-[#4caf50]/90"
+        disabled={isLoading}
+      >
+        {isLoading ? "Processing..." : "Predict Disease"}
+      </Button>
+    )}
+    
     {prediction && (
-      <div className="w-full p-4 bg-[#8bc34a]/20 rounded-lg animate-fade-in">
+      <div className="w-full p-4 mt-4 bg-[#8bc34a]/20 rounded-lg animate-fade-in">
         <p className="text-center font-semibold">
-          Predicted Disease: <span className="text-[#8bc34a]">{prediction}</span>
+          Predicted Disease: <span className="text-[#8bc34a]">{prediction.disease}</span>
         </p>
+        <div className="mt-2">
+          <p className="text-sm mb-2">Top 3 Predictions:</p>
+          {prediction.top3_predictions.map(([disease, probability], index) => (
+            <div key={index} className="text-sm flex justify-between">
+              <span>{disease}</span>
+              <span>{(probability * 100).toFixed(2)}%</span>
+            </div>
+          ))}
+        </div>
       </div>
     )}
   </div>
@@ -199,7 +267,6 @@ interface DiseaseDetailsSectionProps {
 }
 
 const DiseaseDetailsSection = ({ prediction }: DiseaseDetailsSectionProps) => {
-  // Example disease data (in a real app, this would come from an API)
   const diseaseDetails = {
     name: prediction || "-",
     causes: prediction ? "This disease is typically caused by fungal infection that spreads in humid conditions." : "-",
