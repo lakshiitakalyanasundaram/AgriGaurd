@@ -16,14 +16,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Load the traced PyTorch model
-MODEL_PATH = "/Users/lakshiitakalyanasundaram/plant-viz-restyle/backend/plant_disease_model_traced.pt"
+MODEL_PATH = "/Users/lakshiitakalyanasundaram/AgriGaurd/backend/plant_disease_model_traced.pt"
 if not os.path.exists(MODEL_PATH):
     raise FileNotFoundError(f"Model file {MODEL_PATH} not found")
 model = torch.jit.load(MODEL_PATH, map_location=torch.device('cpu'))  # Load model on CPU
 model.eval()  # Set the model to evaluation mode
 
 # Load class names from CSV
-CLASS_MAPPING_PATH = "/Users/lakshiitakalyanasundaram/plant-viz-restyle/backend/plant_disease_mapping.csv"
+CLASS_MAPPING_PATH = "/Users/lakshiitakalyanasundaram/AgriGaurd/backend/plant_disease_mapping.csv"
 if not os.path.exists(CLASS_MAPPING_PATH):
     raise FileNotFoundError(f"Class mapping file {CLASS_MAPPING_PATH} not found")
 class_mapping_df = pd.read_csv(CLASS_MAPPING_PATH)
